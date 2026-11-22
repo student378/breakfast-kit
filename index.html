@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://cdn.jsdelivr.net https://script.google.com https://script.googleusercontent.com https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://script.google.com https://script.googleusercontent.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1d4ed8">
+<title>천원의 아침밥 신청</title>
+<script src="config.js"></script>
+<script>
+// 카카오톡, 네이버 등 인앱 브라우저 감지 시 외부 기본 브라우저로 자동 전환
+(function() {
+  var ua = navigator.userAgent.toLowerCase();
+  var isKakao = ua.indexOf('kakaotalk') > -1;
+  var isNaver = ua.indexOf('naver') > -1;
+  var targetUrl = location.href;
+
+  if (isKakao) {
+    location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(targetUrl);
+  } else if (isNaver) {
+    if (ua.indexOf('android') > -1) {
+      location.href = 'intent://' + targetUrl.replace(/https?:\/\//i, '') + '#Intent;scheme=https;package=com.android.chrome;end';
+    } else {
+      // iOS 네이버 앱: 페이지 이동만으로는 사파리가 열리지 않고 같은 인앱 화면이 계속 새로고침되므로
+      // 자동 이동을 하지 않고 상단 안내만 표시한다 (무한 리다이렉트 방지)
+      window.__naverIOS = true;
+    }
+  }
+})();
+</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--primary:#1d4ed8;--primary-dark:#1e3a8a;--primary-light:#eff6ff;--orange:#f97316;--green:#22c55e;--amber:#f59e0b;--red:#ef4444;--gray50:#f9fafb;--gray100:#f3f4f6;--gray200:#e5e7eb;--gray300:#d1d5db;--gray500:#6b7280;--gray700:#374151;--gray900:#111827;--radius:12px}
+body{font-family:'Noto Sans KR',sans-serif;background:var(--gray100);min-height:100vh;padding-bottom:90px}
+
+/* ── 헤더 ── */
+.app-header{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;padding:16px 20px 14px;text-align:center;position:sticky;top:0;z-index:50;box-shadow:0 2px 10px rgba(29,78,216,.4)}
+.app-header .uni{font-size:11px;opacity:.8;letter-spacing:1px;margin-bottom:3px}
+.app-header h1{font-size:21px;font-weight:800}
+.app-header .sub{font-size:12px;opacity:.75;margin-top:2px}
+
+/* ── 시간 외 / 종료 전체화면 오버레이 ── */
+.full-overlay{display:none;position:fixed;inset:0;z-index:200;align-items:center;justify-content:center;padding:30px;flex-direction:column;text-align:center}
+.full-overlay.show{display:flex}
+.overlay-time{background:linear-gradient(135deg,#0f172a,#1e3a8a);color:#fff}
+.overlay-sold{background:linear-gradient(135deg,#7f1d1d,#ef4444);color:#fff}
+.full-overlay .ov-icon{font-size:56px;margin-bottom:16px}
+.full-overlay h2{font-size:22px;font-weight:800;margin-bottom:10px}
+.full-overlay p{font-size:14px;opacity:.9;line-height:1.7;margin-bottom:8px}
+.full-overlay .ov-time{font-size:13px;opacity:.75;margin-top:6px}
+
+/* ── 실시간 배너 ── */
+.live-banner{background:#fff;border-bottom:3px solid var(--primary);padding:9px 14px;display:flex;align-items:center;gap:9px;position:sticky;top:72px;z-index:40;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 1.5s ease-in-out infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+.live-label{font-size:12px;font-weight:700;color:var(--gray700);white-space:nowrap}
+.live-stats{display:flex;gap:7px;flex:1;justify-content:flex-end;align-items:center}
+.live-stat{display:flex;flex-direction:column;align-items:center;min-width:46px}
+.live-stat .sv{font-size:19px;font-weight:800;line-height:1}
+.live-stat .sl{font-size:10px;font-weight:600;margin-top:1px}
+.sv-total{color:var(--primary)}.sv-sold{color:var(--orange)}.sv-remain{color:var(--green)}
+.live-divider{width:1px;height:28px;background:var(--gray200)}
+.live-note{font-size:10px;color:var(--gray500);text-align:right;padding:3px 14px 4px;background:#fff;border-bottom:1px solid var(--gray200)}
+
+/* ── 컨테이너 / 카드 ── */
+.container{max-width:480px;margin:0 auto;padding:12px}
+.card{background:#fff;border-radius:var(--radius);box-shadow:0 1px 8px rgba(0,0,0,.08);margin-bottom:11px;overflow:hidden}
+.card-header{background:var(--primary-light);border-bottom:2px solid var(--primary);padding:9px 14px;display:flex;align-items:center;gap:7px}
+.card-header .icon{font-size:16px}
+.card-header h2{font-size:13px;font-weight:700;color:var(--primary)}
+.pv-table{width:100%;border-collapse:collapse;font-size:12px;line-height:1.5;word-break:keep-all}
+.pv-table th{width:30%;text-align:left;vertical-align:top;background:var(--gray50);color:var(--gray700);font-weight:700;padding:7px 8px;border:1px solid var(--gray200)}
+.pv-table td{padding:7px 8px;border:1px solid var(--gray200);color:var(--gray900)}
+.pv-sub{font-size:11px;color:var(--gray500)}
+.pv-note{font-size:11px;color:var(--gray700);margin:9px 0 8px;line-height:1.5;word-break:keep-all}
+.pv-options{display:flex;gap:8px}
+.pv-opt{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 6px;border:1.5px solid var(--gray200);border-radius:8px;font-size:13px;font-weight:700;color:var(--gray700);cursor:pointer;background:#fff}
+.pv-opt input{width:17px;height:17px;accent-color:var(--primary);margin:0}
+.pv-opt:has(input:checked){border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+.card-body{padding:13px}
+
+/* ── 폼 ── */
+.form-group{margin-bottom:10px}
+.form-label{display:block;font-size:11px;font-weight:600;color:var(--gray700);margin-bottom:4px}
+.form-label .req{color:var(--red);margin-left:2px}
+.form-input,.form-select{width:100%;padding:9px 11px;border:1.5px solid var(--gray200);border-radius:8px;font-size:14px;font-family:inherit;background:#fff;color:var(--gray900);outline:none;transition:border-color .2s}
+.form-input:focus,.form-select:focus{border-color:var(--primary)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+
+/* ── 날짜 탭 ── */
+.date-tabs{display:flex;gap:5px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+.date-tab{flex-shrink:0;padding:6px 11px;border:1.5px solid var(--gray200);border-radius:20px;background:#fff;cursor:pointer;font-size:11px;font-weight:600;color:var(--gray500);font-family:inherit;white-space:nowrap;transition:all .2s;position:relative}
+.date-tab.active{border-color:var(--primary);background:var(--primary);color:#fff}
+.date-tab.today-tab{border-color:var(--green)}
+.date-tab.today-tab.active{background:var(--green);border-color:var(--green)}
+.date-tab.locked{opacity:.55;cursor:default;border-style:dashed}
+.date-tab.locked.active{background:#fff;color:var(--gray500);border-color:var(--gray200)}
+.lock-badge{position:absolute;top:-5px;right:-4px;background:#9ca3af;color:#fff;font-size:9px;border-radius:10px;padding:0 4px;pointer-events:none}
+
+/* ── 메뉴 카드 ── */
+.menu-card{background:linear-gradient(135deg,#fff9e6,#fff3cd);border:1.5px solid var(--amber);border-radius:10px;padding:11px;margin-top:4px}
+.menu-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px}
+.menu-date-badge{background:var(--amber);color:#fff;font-size:10px;font-weight:700;border-radius:20px;padding:2px 9px}
+.qty-badge-wrap{display:flex;gap:4px;align-items:center}
+.qty-badge{display:inline-flex;flex-direction:column;align-items:center;padding:2px 7px;border-radius:7px;font-size:9px;font-weight:700}
+.qty-badge .qv{font-size:15px;font-weight:800;line-height:1.1}
+.qb-total{background:#dbeafe;color:#1e40af}.qb-remain{background:#dcfce7;color:#166534}
+.qb-remain.low{background:#fee2e2;color:#991b1b}
+.menu-item{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--gray700);margin-bottom:3px}
+.menu-dot{width:5px;height:5px;background:var(--orange);border-radius:50%;flex-shrink:0}
+.no-menu{font-size:12px;color:var(--gray500);text-align:center;padding:10px}
+.lock-notice{background:#f3f4f6;border:1.5px dashed var(--gray300);border-radius:10px;padding:13px;text-align:center;margin-top:4px}
+.lock-notice .li{font-size:24px;margin-bottom:5px}
+.lock-notice p{font-size:13px;font-weight:700;color:var(--gray500)}
+.lock-notice small{font-size:11px;color:#9ca3af}
+
+/* ── 계좌 안내 ── */
+.account-box{background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid var(--green);border-radius:10px;padding:13px}
+.account-title{font-size:12px;font-weight:700;color:#166534;margin-bottom:9px}
+.account-row{display:flex;align-items:flex-start;gap:5px;margin-bottom:6px;font-size:12px;color:var(--gray700)}
+.account-row .num{background:var(--green);color:#fff;font-size:10px;font-weight:700;border-radius:50%;min-width:17px;height:17px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.account-highlight{background:#fff;border:1.5px solid var(--green);border-radius:8px;padding:7px 10px;text-align:center;margin-top:7px}
+.account-highlight .bank-name{font-size:11px;color:var(--gray500);margin-bottom:2px}
+.account-highlight .acno{font-size:15px;font-weight:800;color:var(--primary);letter-spacing:.5px}
+.account-highlight .name{font-size:11px;color:var(--gray700);margin-top:2px}
+
+/* ── 결제 선택 ── */
+.pay-options{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:4px}
+.pay-btn{padding:11px;border:2px solid var(--gray200);border-radius:10px;background:#fff;cursor:pointer;text-align:center;transition:all .2s;font-family:inherit}
+.pay-btn .pay-icon{font-size:22px;margin-bottom:3px}
+.pay-btn .pay-label{font-size:12px;font-weight:600;color:var(--gray700)}
+.pay-btn.selected{border-color:var(--primary);background:var(--primary-light)}
+.pay-btn.selected .pay-label{color:var(--primary)}
+
+/* ── 시간 ── */
+.time-display{background:var(--gray50);border:1.5px solid var(--gray200);border-radius:8px;padding:9px 11px;font-size:15px;font-weight:700;color:var(--primary);text-align:center;letter-spacing:.5px}
+.time-display.before{border-color:var(--orange);background:#fff7ed;color:var(--orange)}
+
+/* ── 경고 / 버튼 ── */
+.warn-box{background:#fff7ed;border:1.5px solid var(--orange);border-radius:10px;padding:9px 11px;display:flex;gap:7px;align-items:flex-start;font-size:11px;color:#92400e;line-height:1.6;margin-bottom:10px}
+.submit-btn{width:100%;padding:15px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);font-size:16px;font-weight:800;font-family:inherit;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 4px 12px rgba(29,78,216,.35)}
+.submit-btn:hover{opacity:.9}
+.submit-btn:disabled{background:var(--gray300);box-shadow:none;cursor:not-allowed}
+
+/* ── 모달 / 로딩 ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:16px;width:100%;max-width:360px;padding:22px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.modal .modal-icon{font-size:46px;margin-bottom:10px}
+.modal h3{font-size:17px;font-weight:800;margin-bottom:7px}
+.modal p{font-size:13px;color:var(--gray500);line-height:1.6;margin-bottom:14px}
+.modal-detail{background:var(--gray50);border-radius:9px;padding:11px;text-align:left;margin-bottom:14px;font-size:12px;color:var(--gray700);line-height:1.9}
+.modal-btn{width:100%;padding:11px;background:var(--primary);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer}
+.transfer-box{background:linear-gradient(135deg,#eff6ff,#dbeafe);border:2px solid #93c5fd;border-radius:12px;padding:14px 16px;margin:14px 0 10px;text-align:left}
+.transfer-box .tb-title{font-size:11px;font-weight:700;color:#1d4ed8;margin-bottom:8px;letter-spacing:.5px}
+.transfer-box .tb-bank{font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:4px}
+.transfer-box .tb-no{font-size:20px;font-weight:900;color:#1d4ed8;letter-spacing:1px;margin-bottom:4px}
+.transfer-box .tb-amt{font-size:13px;color:#059669;font-weight:800}
+.copy-btn{width:100%;padding:10px;background:#1d4ed8;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;margin-bottom:7px;display:flex;align-items:center;justify-content:center;gap:6px}
+.copy-btn:active{opacity:.85}
+.kakao-btn{width:100%;padding:10px;background:#FEE500;color:#000;border:none;border-radius:9px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;margin-bottom:7px;display:flex;align-items:center;justify-content:center;gap:6px}
+.toss-btn{width:100%;padding:10px;background:#4B5EF5;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;margin-bottom:7px;display:flex;align-items:center;justify-content:center;gap:6px}
+.copy-toast{font-size:11px;color:#059669;text-align:center;margin-bottom:8px;display:none}
+.loading-overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.85);z-index:300;align-items:center;justify-content:center;flex-direction:column;gap:10px}
+.loading-overlay.show{display:flex}
+.spinner{width:38px;height:38px;border:4px solid var(--gray200);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- 신청시간 외 오버레이 -->
+<div class="full-overlay overlay-time" id="overlayTime">
+  <div class="ov-icon">⏰</div>
+  <h2>신청 시간이 아닙니다</h2>
+  <p>천원의 아침밥 신청은<br><strong id="overlayStartTime">08:25</strong> 부터 가능합니다.</p>
+  <div class="ov-time" id="overlayCurrentTime">현재 시간: --:--:--</div>
+</div>
+
+<!-- 판매 종료 오버레이 -->
+<div class="full-overlay overlay-sold" id="overlaySold">
+  <div class="ov-icon">🍱</div>
+  <h2>판매 종료</h2>
+  <p id="overlaySoldMsg">금일 천원의 아침밥 판매가 종료되었습니다.<br>감사합니다.</p>
+</div>
+
+<div class="app-header">
+  <div class="uni" id="hdrEn"></div>
+  <h1>🍱 천원의 아침밥</h1>
+  <div class="sub" id="hdrSub">학생 신청</div>
+</div>
+
+<div class="live-banner">
+  <div class="live-dot"></div>
+  <span class="live-label">실시간 현황</span>
+  <div class="live-stats">
+    <div class="live-stat"><span class="sv sv-total" id="bannerTotal">—</span><span class="sl" style="color:var(--primary)">판매수량</span></div>
+    <div class="live-divider"></div>
+    <div class="live-stat"><span class="sv sv-sold" id="bannerSold">—</span><span class="sl" style="color:var(--orange)">판매</span></div>
+    <div class="live-divider"></div>
+    <div class="live-stat"><span class="sv sv-remain" id="bannerRemain">—</span><span class="sl" style="color:var(--green)">잔여</span></div>
+  </div>
+</div>
+<div class="live-note">※ 정확한 수량은 판매현장 사정에 따라 다소 차이가 있을 수 있으니 참고바랍니다.</div>
+
+<div class="container">
+  <!-- 기본정보 -->
+  <div class="card">
+    <div class="card-header"><span class="icon">👤</span><h2>기본 정보</h2></div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">학과 <span class="req">*</span></label>
+          <select class="form-select" id="dept">
+            <option value="">-- 학과를 선택하세요 --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">학년 <span class="req">*</span></label>
+          <select class="form-select" id="grade">
+            <option value="">선택</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">학번 <span class="req">*</span></label>
+        <input class="form-input" type="text" id="studentId" placeholder="숫자만 입력" maxlength="20" inputmode="numeric">
+      </div>
+      <div class="form-group">
+        <label class="form-label">성명 <span class="req">*</span></label>
+        <input class="form-input" type="text" id="studentName" placeholder="실명 입력">
+      </div>
+    </div>
+  </div>
+
+  <!-- 날짜 & 메뉴 -->
+  <div class="card">
+    <div class="card-header"><span class="icon">📅</span><h2>이용 날짜 &amp; 오늘의 메뉴</h2></div>
+    <div class="card-body">
+      <div class="form-group">
+        <label class="form-label">날짜 선택 <span class="req">*</span> <span style="font-size:10px;color:var(--gray500);font-weight:400">※ 신청은 당일만 가능</span></label>
+        <div class="date-tabs" id="dateTabs"></div>
+      </div>
+      <div id="menuDisplay"></div>
+      <div class="form-group" style="margin-top:11px">
+        <label class="form-label">신청 시간 (자동)</label>
+        <div class="time-display" id="currentTime">--:--:--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 계좌 안내 -->
+  <div class="card" id="payCard">
+    <div class="card-header"><span class="icon">💳</span><h2>계좌이체 안내</h2></div>
+    <div class="card-body">
+      <div class="account-box">
+        <div class="account-title">🏦 천원의 아침밥 계좌 이체 시 정보 안내</div>
+        <div id="acctInfo">
+        <div class="account-row"><div class="num">1</div><span>계좌이체 금액: <strong id="acctAmt"></strong></span></div>
+        <div class="account-row"><div class="num">2</div><span>계좌이체 통장번호 (<span id="acctBankInline"></span>)</span></div>
+        <div class="account-highlight">
+          <div class="bank-name" id="acctBankLabel"></div>
+          <div class="acno" id="acctNo"></div>
+          <div class="name">예금주: <span id="acctOwner"></span></div>
+        </div>
+        <div class="account-row" style="margin-top:9px"><div class="num">3</div><span>계좌이체 화면(휴대폰)을 <strong>선생님께 반드시 보여주세요!!!</strong></span></div>
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:13px">
+        <label class="form-label">송금 방법 <span class="req">*</span></label>
+        <div class="pay-options">
+          <button class="pay-btn" id="payTransfer" onclick="selectPay('계좌이체')"><div class="pay-icon">📱</div><div class="pay-label">계좌이체</div></button>
+          <button class="pay-btn" id="payCash" onclick="selectPay('현금지급')"><div class="pay-icon">💵</div><div class="pay-label">현금 지급</div></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 개인정보 수집·이용 동의 -->
+  <div class="card" id="privacyCard">
+    <div class="card-header"><span class="icon">🔒</span><h2>개인정보 수집·이용 동의 <span class="req">*</span></h2></div>
+    <div class="card-body">
+      <table class="pv-table">
+        <tr><th>수집·이용 목적</th><td>천원의 아침밥 신청 접수 및 이용 확인</td></tr>
+        <tr><th>수집 항목</th><td>성명, 학과, 학번, 학년<br><span class="pv-sub">신청 시 함께 기록: 이용일, 신청시간, 송금 방법</span></td></tr>
+        <tr><th>보유·이용 기간</th><td><b id="pvRetention"></b><br><span class="pv-sub" id="pvNote"></span></td></tr>
+      </table>
+      <p class="pv-note">위 개인정보 수집·이용에 동의하지 않을 수 있으며, 동의하지 않을 경우 천원의 아침밥 신청이 제한됩니다.</p>
+      <div class="pv-options" role="radiogroup" aria-label="개인정보 수집·이용 동의 여부">
+        <label class="pv-opt"><input type="radio" name="privacyAgree" value="Y"> 동의함</label>
+        <label class="pv-opt"><input type="radio" name="privacyAgree" value="N"> 동의하지 않음</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="warn-box"><span style="font-size:15px;flex-shrink:0">⚠️</span><span>신청 후 취소가 어렵습니다. 이용 당일 현장에서 결제 확인 후 식사가 가능합니다. 허위 신청 시 추후 신청이 제한될 수 있습니다.</span></div>
+  <button class="submit-btn" id="submitBtn" onclick="submitApply()">🍱 천원의 아침밥 신청하기</button>
+  <div id="contactLine" style="display:none;text-align:center;font-size:11.5px;color:#64748b;margin:14px 0 6px"></div>
+</div>
+
+<div class="modal-overlay" id="successModal">
+  <div class="modal">
+    <div class="modal-icon">✅</div><h3>신청 완료!</h3>
+    <p>천원의 아침밥 신청이 완료되었습니다.</p>
+    <div class="modal-detail" id="successDetail"></div>
+    <!-- 계좌이체 UI (계좌이체 선택 시 표시) -->
+    <div class="transfer-box" id="transferBox" style="display:none">
+      <div class="tb-title">💳 계좌이체 안내</div>
+      <div class="tb-bank" id="tbBank"></div>
+      <div class="tb-no" id="tbNo"></div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:4px">예금주: <span id="tbOwner"></span></div>
+      <div class="tb-amt">💰 이체 금액: <span id="tbAmt"></span></div>
+    </div>
+    <div id="copyToast" class="copy-toast">✅ 계좌번호가 복사되었습니다!</div>
+    <button class="copy-btn" id="copyBtn" style="display:none" onclick="copyAcctNo()">
+      📋 계좌번호 복사
+    </button>
+    <button class="kakao-btn" id="kakaoBtn" style="display:none" onclick="openKakaoBank()">
+      💛 카카오뱅크 앱 열기
+    </button>
+    <button class="toss-btn" id="tossBtn" style="display:none" onclick="openTossBank()">
+      💙 토스뱅크 앱 열기
+    </button>
+    <button class="modal-btn" onclick="closeModal()">확인 (닫기)</button>
+  </div>
+</div>
+<div class="loading-overlay" id="loadingOverlay"><div class="spinner"></div><div style="font-size:13px;color:#374151;font-weight:600">신청 중...</div></div>
+
+<script>
+// ══════════════════════════════════════════
+//  설정
+// ══════════════════════════════════════════
+// ── HTML 이스케이프 (XSS 방어) ──
+function esc(s){
+  if(s===null||s===undefined) return '';
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#x27;')
+    .replace(/`/g,'&#x60;');
+}
+// 서버 주소는 같은 폴더의 config.js 에서 읽습니다. 비어 있으면 '미리보기' 모드(서버 없이 화면만 확인)로 열립니다.
+const GAS_URL = String((window.BF_CONFIG && window.BF_CONFIG.GAS_URL) || '').trim();
+const IS_PREVIEW = !/^https:\/\/script\.google\.com\/(?:a\/macros\/[^\/]+|macros)\/s\/[A-Za-z0-9_-]+\/exec$/.test(GAS_URL);
+const DAY_NAMES = ['일','월','화','수','목','금','토'];
+
+const LS = {
+  get: (k, def=null) => { try { const r=localStorage.getItem('bfk_'+k); return r?JSON.parse(r):def; } catch(e){return def;} },
+  set: (k, v) => { try { localStorage.setItem('bfk_'+k, JSON.stringify(v)); } catch(e){} }
+};
+
+// GAS 시간값 정제 (Date 자동변환 방지)
+function cleanTime(v, def) {
+  if (!v) return def;
+  const s = String(v).trim();
+  if (/^\d{1,2}:\d{2}$/.test(s)) return s;
+  if (s.indexOf('1899') !== -1 || s.indexOf('GMT') !== -1) return def;
+  return def;
+}
+
+function getMenuData() {
+  // localStorage 캐시 우선 (loadAll에서 GAS 식단을 캐시해 둠)
+  return LS.get('menu', getDefaultMenuData());
+}
+function getDefaultMenuData() {
+  // 서버에 연결되면 「식단」 시트 값을 씁니다. 미리보기 모드에서만 예시 식단을 만듭니다.
+  if (!IS_PREVIEW) return {};
+  const out = {}, d = new Date(); d.setDate(d.getDate() - 1);
+  const ex = [['예시 메뉴 A','(업체명)'],['예시 메뉴 B','(업체명)'],['예시 메뉴 C','(업체명)']];
+  for (let i = 0, n = 0; i < 14 && n < 8; i++, d.setDate(d.getDate() + 1)) {
+    if (d.getDay() === 0 || d.getDay() === 6) continue;
+    out[fDate(d)] = { menus: ex[n % 3], qty: 100 }; n++;
+  }
+  return out;
+}
+
+let selectedDate = '';
+let selectedPay = '';
+let busyRetry = 0;
+let liveStats = { total:0, sold:0, remain:0 };
+let todayStr = '';
+let isBeforeTime = false;
+let isSoldOutState = false;
+
+// ══════════════════════════════════════════
+//  학교 정보 — 서버 「설정」·「학과목록」 시트에서 받아 이 기기에 캐시
+// ══════════════════════════════════════════
+function parseDigits(t){
+  const out=[];
+  String(t||'').split(',').forEach(function(part){
+    const m=/^\s*(\d{1,2})\s*(?:-|~)\s*(\d{1,2})\s*$/.exec(part);
+    if(m){ for(let n=+m[1];n<=+m[2];n++) out.push(n); return; }
+    const n=parseInt(String(part).trim(),10); if(n) out.push(n);
+  });
+  return out.filter(function(n,i,a){return n>=1&&n<=20&&a.indexOf(n)===i;}).sort(function(a,b){return a-b;});
+}
+function digitsLabel(l){
+  if(l.length===1) return l[0]+'자리';
+  const c=l.every(function(n,i){return i===0||n===l[i-1]+1;});
+  return c?(l[0]+'~'+l[l.length-1]+'자리'):(l.join('·')+'자리');
+}
+function splitList(t){ return String(t||'').split(',').map(function(x){return x.trim();}).filter(Boolean); }
+function schoolFromSettings(d){
+  return {
+    name:d.schoolName||'', nameEn:d.schoolNameEn||'', org:d.orgName||'', contact:d.contact||'',
+    idDigits:d.idDigits||'9', grades:d.grades||'1학년,2학년,3학년', payMethods:d.payMethods||'계좌이체,현금지급',
+    retention:d.privacyRetention||'', note:d.privacyNote||'',
+    depts:Array.isArray(d.depts)?d.depts:[]
+  };
+}
+const PREVIEW_SCHOOL={name:'○○대학교',nameEn:'',org:'(미리보기)',contact:'',idDigits:'9',grades:'1학년,2학년,3학년',payMethods:'계좌이체,현금지급',
+  retention:'(학교에서 정한 보유 기간)',note:'',depts:['(예시) 컴퓨터공학과','(예시) 경영학과','(예시) 간호학과']};
+function getSchool(){
+  const s=LS.get('school',null)||(IS_PREVIEW?PREVIEW_SCHOOL:schoolFromSettings({}));
+  const lens=parseDigits(s.idDigits); s.idLens=lens.length?lens:[9]; s.idLabel=digitsLabel(s.idLens);
+  s.gradeList=splitList(s.grades); s.payList=splitList(s.payMethods);
+  return s;
+}
+function fillSelect(id,items,first){
+  const el=document.getElementById(id); if(!el) return;
+  const cur=el.value;
+  el.innerHTML='<option value="">'+esc(first)+'</option>'+items.map(function(x){return '<option>'+esc(x)+'</option>';}).join('');
+  if(cur&&items.indexOf(cur)>=0) el.value=cur;
+}
+function applySchool(){
+  const s=getSchool();
+  const set=function(id,v){const e=document.getElementById(id);if(e)e.textContent=v;};
+  set('hdrEn', s.nameEn?('🏫 '+s.nameEn.toUpperCase()):(s.name?'🏫 '+s.name:''));
+  set('hdrSub','학생 신청'+((s.name||s.org)?' · '+[s.name,s.org].filter(Boolean).join(' '):''));
+  document.title='천원의 아침밥 신청'+(s.name?' · '+s.name:'');
+  fillSelect('dept', s.depts, s.depts.length?'-- 학과를 선택하세요 --':(LS.get('school',null)?'등록된 학과가 없습니다 (담당 부서 문의)':'학과 목록을 불러오는 중...'));
+  fillSelect('grade', s.gradeList, '선택');
+  const sid=document.getElementById('studentId');
+  if(sid){ sid.maxLength=s.idLens[s.idLens.length-1]; sid.placeholder='학번 '+s.idLabel+' 숫자'; }
+  set('pvRetention', s.retention||'(보유 기간 미정 — 담당 부서에 문의)');
+  set('pvNote', s.note||'');
+  const c=document.getElementById('contactLine');
+  if(c){ c.textContent=s.contact?('문의: '+s.contact):''; c.style.display=s.contact?'block':'none'; }
+  // 송금 방법: 설정에 없는 버튼은 숨김, 계좌이체를 쓰지 않으면 계좌 안내도 숨김
+  const useT=s.payList.indexOf('계좌이체')>=0, useC=s.payList.indexOf('현금지급')>=0;
+  const pt=document.getElementById('payTransfer'), pc=document.getElementById('payCash'), ai=document.getElementById('acctInfo');
+  if(pt) pt.style.display=useT?'':'none';
+  if(pc) pc.style.display=useC?'':'none';
+  if(ai) ai.style.display=useT?'':'none';
+  if(selectedPay && s.payList.indexOf(selectedPay)<0){ selectedPay=''; if(pt)pt.classList.remove('selected'); if(pc)pc.classList.remove('selected'); }
+}
+
+// ── 시간 설정 ──
+function getTimeSettings() { return LS.get('time_settings', {start:'08:25',end:'10:30'}); }
+
+function parseTime(t) { const [h,m]=t.split(':').map(Number); return h*60+m; }
+
+function checkTimeState() {
+  const ts = getTimeSettings();
+  const startMin = parseTime(ts.start||'08:25');
+  const now = new Date();
+  const nowMin = now.getHours()*60+now.getMinutes();
+  return nowMin < startMin;
+}
+
+// ── 판매 종료 상태 ──
+function checkSoldOut(date) {
+  // 수량 초과 신청 허용 — 수동 판매종료만 체크
+  const so = LS.get('soldout_settings',{manual:false,msg:'금일 천원의 아침밥 판매가 종료되었습니다. 감사합니다.'});
+  if (so.manual) return true;
+  return false; // 수량 도달해도 신청 가능 (현장 승인으로 관리)
+}
+
+// ── 계좌 정보 적용 ──
+function applyAccountInfo() {
+  const acct = LS.get('account',{bank:'',no:'',owner:'',amt:'1,000원'});
+  const s=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  s('acctAmt',acct.amt); s('acctBankInline',acct.bank); s('acctBankLabel',acct.bank); s('acctNo',acct.no); s('acctOwner',acct.owner);
+}
+
+// ── 오버레이 체크 ──
+function checkOverlays() {
+  const ts = getTimeSettings();
+  const before = checkTimeState();
+  const MENU_DATA = getMenuData();
+  const today = fDate(new Date());
+
+  // 오늘이 운영일인지 확인
+  const isTodayOperating = !!MENU_DATA[today];
+
+  // 시간 전
+  if (before && isTodayOperating) {
+    document.getElementById('overlayStartTime').textContent = ts.start||'08:25';
+    document.getElementById('overlayTime').classList.add('show');
+    document.getElementById('overlaySold').classList.remove('show');
+    isBeforeTime = true; isSoldOutState = false;
+    return;
+  }
+  document.getElementById('overlayTime').classList.remove('show');
+  isBeforeTime = false;
+
+  // 판매 종료
+  if (isTodayOperating && checkSoldOut(today)) {
+    const so = LS.get('soldout_settings',{msg:'금일 천원의 아침밥 판매가 종료되었습니다. 감사합니다.'});
+    document.getElementById('overlaySoldMsg').innerHTML = esc(so.msg).replace(/\n/g,'<br>');
+    document.getElementById('overlaySold').classList.add('show');
+    isSoldOutState = true;
+  } else {
+    document.getElementById('overlaySold').classList.remove('show');
+    isSoldOutState = false;
+  }
+}
+
+function fDate(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fDateKr(s){ const[y,m,d]=s.split('-'); return y+'년 '+parseInt(m)+'월 '+parseInt(d)+'일'; }
+
+// ── 날짜 탭 ──
+function buildDateTabs() {
+  const MENU_DATA = getMenuData();
+  const container = document.getElementById('dateTabs');
+  container.innerHTML = '';
+  const today = new Date(); todayStr = fDate(today);
+  const operDates = Object.keys(MENU_DATA).sort();
+  const show = operDates.filter(d=>{ const diff=(new Date(d+'T00:00:00')-today)/86400000; return diff>=-3&&diff<=10; });
+  if(!show.length){ container.innerHTML='<div style="font-size:12px;color:var(--gray500)">이번 주 운영일이 없습니다</div>'; return; }
+  let defaultDate = show.find(d=>d>=todayStr)||show[show.length-1];
+  selectedDate = defaultDate;
+  show.forEach(d=>{
+    const dt=new Date(d+'T00:00:00'); const isToday=d===todayStr; const isLocked=d!==todayStr;
+    const label=(dt.getMonth()+1)+'/'+(dt.getDate())+'('+DAY_NAMES[dt.getDay()]+')';
+    const btn=document.createElement('button');
+    btn.className='date-tab'+(d===defaultDate?' active':'')+(isToday?' today-tab':'')+(isLocked?' locked':'');
+    btn.dataset.date=d; btn.dataset.locked=isLocked?'1':'';
+    btn.innerHTML=isToday?label+'<br><span style="font-size:9px;color:var(--green);font-weight:800">오늘</span>':label+'<span class="lock-badge">🔒</span>';
+    btn.onclick=()=>selectDate(d,btn);
+    container.appendChild(btn);
+  });
+  renderMenu(); loadLiveStats();
+}
+
+function selectDate(dateKey,btn){
+  document.querySelectorAll('.date-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); selectedDate=dateKey; renderMenu(); loadLiveStats();
+}
+
+// ── 메뉴 렌더 ──
+function renderMenu(){
+  const MENU_DATA = getMenuData();
+  const el=document.getElementById('menuDisplay');
+  const data=MENU_DATA[selectedDate];
+  const isLocked=selectedDate!==todayStr;
+  if(!data){ el.innerHTML='<div class="menu-card"><div class="no-menu">📭 해당 날짜 메뉴 정보가 없습니다</div></div>'; }
+  else{
+    const dt=new Date(selectedDate+'T00:00:00');
+    const badge=(dt.getMonth()+1)+'월 '+(dt.getDate())+'일 ('+DAY_NAMES[dt.getDay()]+') 메뉴';
+    const totalQty=data.qty; const soldQty=liveStats.sold||0; const remainQty=Math.max(0,totalQty-soldQty);
+    const isSoldOut=checkSoldOut(selectedDate); // 수동종료만 체크 — 수량 도달해도 마감 안 함
+    const isLow=remainQty>0&&remainQty<=20&&!checkSoldOut(selectedDate);
+    const items=data.menus.filter(m=>!m.startsWith('(')).map(m=>'<div class="menu-item"><div class="menu-dot"></div><span>'+esc(m)+'</span></div>').join('');
+    const brand=data.menus.find(m=>m.startsWith('('))||'';
+    if(isSoldOut&&!isLocked){
+      el.innerHTML='<div style="background:#fff7f7;border:1.5px solid var(--red);border-radius:10px;padding:13px;text-align:center;margin-top:4px"><div style="font-size:28px;margin-bottom:5px">😔</div><p style="font-size:13px;font-weight:700;color:var(--red)">오늘은 마감되었습니다</p></div>';
+    }else{
+      el.innerHTML='<div class="menu-card"><div class="menu-top"><div class="menu-date-badge">🍽️ '+badge+'</div><div class="qty-badge-wrap">'+(isLocked?'':'<div class="qty-badge qb-total"><span class="qv">'+totalQty+'</span>수량</div><div class="qty-badge qb-remain '+(isLow?'low':'')+'"><span class="qv">'+remainQty+'</span>잔여</div>')+'</div></div>'+items+(brand?'<div style="font-size:10px;color:var(--gray500);margin-top:5px;font-weight:600">'+esc(brand)+'</div>':'')+'</div>';
+    }
+  }
+  const manualSoldOut = checkSoldOut(selectedDate); // 수동종료 포함 판매종료 여부
+  if(isLocked){
+    el.insertAdjacentHTML('beforeend','<div class="lock-notice"><div class="li">🔒</div><p>'+fDateKr(selectedDate)+' 메뉴 미리보기</p><small>신청은 해당 날짜 당일에만 가능합니다</small></div>');
+    document.getElementById('submitBtn').disabled=true;
+    document.getElementById('submitBtn').innerHTML='🔒 당일에만 신청 가능';
+  }else if(manualSoldOut){
+    // 수동 종료 시에만 버튼 비활성화 (수량 도달해도 신청 가능)
+    const so=LS.get('soldout_settings',{msg:'금일 천원의 아침밥 판매가 종료되었습니다. 감사합니다.'});
+    document.getElementById('submitBtn').disabled=true;
+    document.getElementById('submitBtn').innerHTML='⛔ 판매 종료';
+  }else{
+    document.getElementById('submitBtn').disabled=false;
+    document.getElementById('submitBtn').innerHTML='🍱 천원의 아침밥 신청하기';
+  }
+}
+
+// ── 실시간 현황 ──
+function loadLiveStats(){
+  if(!selectedDate)return;
+  const MENU_DATA = getMenuData();
+  if(IS_PREVIEW){
+    const sold=parseInt(localStorage.getItem('bf_sold_'+selectedDate)||'0');
+    const data=MENU_DATA[selectedDate]; const total=data?data.qty:0;
+    liveStats={total,sold,remain:Math.max(0,total-sold)};
+    updateBanner(liveStats); renderMenu(); return;
+  }
+  fetchFromGAS({action:'getStats',date:selectedDate},function(data,err){
+    if(!err&&data&&data.status==='ok'){
+      liveStats={total:data.total,sold:data.sold,remain:data.remain};
+      // ✅ GAS에서 수동종료 상태 수신 → localStorage 즉시 갱신
+      if(data.soldoutManual!==undefined){
+        const so=LS.get('soldout_settings',{manual:false,msg:'금일 천원의 아침밥 판매가 종료되었습니다. 감사합니다.'});
+        so.manual=(data.soldoutManual===true||data.soldoutManual==='true');
+        if(data.soldoutMsg) so.msg=data.soldoutMsg;
+        LS.set('soldout_settings',so);
+      }
+    } else {
+      const d=MENU_DATA[selectedDate]; liveStats={total:d?d.qty:0,sold:0,remain:d?d.qty:0};
+    }
+    updateBanner(liveStats); renderMenu(); checkOverlays();
+  });
+}
+
+function updateBanner(stats){
+  const el=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  el('bannerTotal',stats.total); el('bannerSold',stats.sold); el('bannerRemain',stats.remain);
+  const rem=document.getElementById('bannerRemain');
+  if(rem&&typeof stats.remain==='number') rem.style.color=stats.remain<=20?'var(--red)':'var(--green)';
+}
+
+// ── 시계 ──
+function updateClock(){
+  const ts = getTimeSettings();
+  const startMin = parseTime(ts.start||'08:25');
+  const now = new Date();
+  const nowMin = now.getHours()*60+now.getMinutes();
+  const timeStr=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
+  const el=document.getElementById('currentTime');
+  if(el){
+    el.textContent=timeStr;
+    el.className='time-display'+(nowMin<startMin?' before':'');
+  }
+  // 오버레이 업데이트
+  const ot=document.getElementById('overlayCurrentTime');
+  if(ot) ot.textContent='현재 시간: '+timeStr;
+}
+
+function selectPay(method){ selectedPay=method; document.getElementById('payTransfer').classList.toggle('selected',method==='계좌이체'); document.getElementById('payCash').classList.toggle('selected',method==='현금지급'); }
+
+function sanitizeInput(s){ return String(s||'').replace(/[<>"'`&;=]/g,'').trim(); }
+function validate(){
+  if(!document.getElementById('dept').value){alert('학과를 선택해주세요.');return false;}
+  if(!document.getElementById('grade').value){alert('학년을 선택해주세요.');return false;}
+  const sid=sanitizeInput(document.getElementById('studentId').value);
+  document.getElementById('studentId').value=sid;
+if(!sid||!/^\d+$/.test(sid)){alert('학번은 숫자만 입력해주세요.');return false;}
+const SC=getSchool();
+if(SC.idLens.indexOf(sid.length)<0){alert('학번은 '+SC.idLabel+'로 입력해주세요.\n현재 '+sid.length+'자리 입력됨');return false;}  
+  const nameRaw=sanitizeInput(document.getElementById('studentName').value);
+  document.getElementById('studentName').value=nameRaw;
+  if(nameRaw.length<2){alert('성명을 입력해주세요.');return false;}
+  if(!selectedDate){alert('이용 날짜를 선택해주세요.');return false;}
+  if(selectedDate!==fDate(new Date())){alert('❌ 신청은 해당 날짜 당일에만 가능합니다. 화면을 새로고침해주세요.');return false;}
+  // 수동 판매종료 체크 (관리자 설정 우선)
+  if(checkSoldOut(selectedDate)){
+    const so=LS.get('soldout_settings',{msg:'금일 천원의 아침밥 판매가 종료되었습니다. 감사합니다.'});
+    alert('⛔ '+so.msg);return false;
+  }
+  // 신청 시간 확인
+  const ts = getTimeSettings();
+  const startMin = parseTime(ts.start||'08:25');
+  const now = new Date(); const nowMin = now.getHours()*60+now.getMinutes();
+  if(nowMin<startMin){alert('⏰ 신청 시간이 아닙니다.\n'+ts.start+' 이후부터 신청 가능합니다.');return false;}
+  // 관리자 설정의 신청 종료 시간 적용 (적용을 원하지 않으면 아래 상수를 false로)
+  const ENFORCE_END_TIME = true;
+  if(ENFORCE_END_TIME && ts.end && /^\d{1,2}:\d{2}$/.test(ts.end) && nowMin>parseTime(ts.end)){
+    alert('⏰ 신청 시간이 종료되었습니다.\n신청 가능 시간: '+ts.start+' ~ '+ts.end);return false;
+  }
+  if(!selectedPay){alert('송금 방법을 선택해주세요.');return false;}
+  const agreeEl=document.querySelector('input[name="privacyAgree"]:checked');
+  if(!agreeEl){alert('개인정보 수집·이용 동의 여부를 선택해주세요.');document.getElementById('privacyCard').scrollIntoView({behavior:'smooth',block:'center'});return false;}
+  if(agreeEl.value!=='Y'){alert('개인정보 수집·이용에 동의하지 않으면 천원의 아침밥 신청이 제한됩니다.');return false;}
+  // 수량 도달해도 신청 가능 — 수동종료만 checkSoldOut에서 체크함
+  return true;
+}
+
+function fetchFromGAS(params, callback) {
+  const qParts = Object.entries(params)
+    .map(([k,v]) => encodeURIComponent(k)+'='+encodeURIComponent(v))
+    .join('&');
+  const timeoutMs = (params.action === 'getAll') ? 25000 : 15000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  fetch(GAS_URL + '?' + qParts, {
+    method: 'GET',
+    mode: 'cors',
+    signal: controller.signal
+  })
+  .then(r => { clearTimeout(timer); if(!r.ok) throw new Error(r.status); return r.json(); })
+  .then(data => callback(data, null))
+  .catch(err => {
+    clearTimeout(timer);
+    callback(null, err.name==='AbortError' ? 'timeout' : 'error');
+  });
+}
+
+function submitApply(){
+  if(!validate())return;
+  const now=new Date();
+  const timeStr=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
+  const dept=document.getElementById('dept').value; const grade=document.getElementById('grade').value;
+  const sid=document.getElementById('studentId').value.trim(); const name=document.getElementById('studentName').value.trim();
+  const MENU_DATA=getMenuData(); const data=MENU_DATA[selectedDate]; const menuStr=data?data.menus.join(' '):'';
+  const dupKey='breakfast_'+selectedDate+'_'+sid;
+  if(localStorage.getItem(dupKey)){alert('⚠️ 이미 '+fDateKr(selectedDate)+' 신청이 완료된 학번입니다.');return;}
+  document.getElementById('loadingOverlay').classList.add('show');
+  document.getElementById('submitBtn').disabled=true;
+  const params={action:'save',timestamp:now.toISOString(),date:selectedDate,dept,grade,studentId:sid,name,applyTime:timeStr,menu:menuStr,payMethod:selectedPay,agree:'Y'};
+  fetchFromGAS(params,function(resData,err){
+    document.getElementById('loadingOverlay').classList.remove('show');
+    if(IS_PREVIEW||(!err&&resData&&resData.status==='ok')){
+      busyRetry=0;
+      const shownTime=(resData&&resData.applyTime)||timeStr;
+      const prev=parseInt(localStorage.getItem('bf_sold_'+selectedDate)||'0');
+      localStorage.setItem('bf_sold_'+selectedDate,String(prev+1));
+      localStorage.setItem(dupKey,'1');
+      liveStats.sold=prev+1; liveStats.remain=Math.max(0,liveStats.total-liveStats.sold);
+      updateBanner(liveStats); renderMenu(); checkOverlays();
+      showSuccess({dept,grade,sid,name,date:selectedDate,time:shownTime,pay:selectedPay,menu:menuStr}); return;
+    }
+    if(resData&&resData.status==='busy'&&busyRetry>=5){
+      busyRetry=0;
+      alert('⏳ 접속이 많아 신청이 처리되지 않았습니다. 잠시 후 다시 신청해주세요.');
+      document.getElementById('submitBtn').disabled=false; return;
+    }
+    if(resData&&resData.status==='busy'){
+      // 동시 접속 집중 → 2초 후 자동 재시도 (최대 5회)
+      busyRetry++;
+      const btn=document.getElementById('submitBtn');
+      btn.innerHTML='⏳ 잠시 후 재시도 중... (2초)';
+      setTimeout(function(){
+        btn.innerHTML='🍱 천원의 아침밥 신청하기';
+        btn.disabled=false;
+        submitApply();
+      },2000);
+      return;
+    }
+    busyRetry=0;
+    if(resData&&resData.status==='soldout'){
+      alert('😔 죄송합니다. 금일 천원의 아침밥 판매가 종료되었습니다.');
+      document.getElementById('submitBtn').disabled=false;
+      checkOverlays(); return;
+    }
+    if(resData&&resData.status==='duplicate'){alert('⚠️ 이미 해당 날짜에 신청이 완료된 학번입니다.');document.getElementById('submitBtn').disabled=false;return;}
+    if(resData&&resData.status==='invalid'){alert('❌ '+(resData.message||'신청 정보를 확인해주세요.'));document.getElementById('submitBtn').disabled=false;return;}
+    if(err==='timeout'){
+      alert('⏳ 서버 응답이 지연되고 있습니다.\n신청이 이미 접수되었을 수 있으니, 다시 신청하기 전에 현장 담당자에게 신청 여부를 확인해주세요.');
+    } else {
+      alert('❌ 신청 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+    }
+    document.getElementById('submitBtn').disabled=false;
+  });
+}
+
+function showSuccess({dept,grade,sid,name,date,time,pay,menu}){
+  document.getElementById('successDetail').innerHTML=
+    '<b>📅 이용일</b>: '+esc(fDateKr(date))+
+    '<br><b>🏫 학과/학년</b>: '+esc(dept)+' '+esc(grade)+
+    '<br><b>🔢 학번</b>: '+esc(sid)+
+    '<br><b>👤 성명</b>: '+esc(name)+
+    '<br><b>⏰ 신청시간</b>: '+esc(time)+
+    '<br><b>🍽️ 메뉴</b>: '+esc(menu||'정보 없음')+
+    '<br><b>💳 결제</b>: '+esc(pay);
+
+  // 계좌이체 선택 시 — 계좌이체 UI 표시
+  const isTransfer = (pay === '계좌이체');
+  const acct = LS.get('account',{bank:'',no:'',owner:'',amt:'1,000원'});
+
+  const tbBox  = document.getElementById('transferBox');
+  const cpBtn  = document.getElementById('copyBtn');
+  const kkBtn  = document.getElementById('kakaoBtn');
+  const toast  = document.getElementById('copyToast');
+
+  if(isTransfer){
+    // 계좌 정보 채우기
+    const el = id => document.getElementById(id);
+    el('tbBank').textContent  = acct.bank  || '';
+    el('tbNo').textContent    = acct.no    || '';
+    el('tbOwner').textContent = acct.owner || '';
+    el('tbAmt').textContent   = acct.amt   || '1,000원';
+    if(tbBox) tbBox.style.display = 'block';
+    if(cpBtn) cpBtn.style.display = 'flex';
+    // 카카오뱅크인 경우만 앱 버튼 표시
+    // 카카오뱅크, 토스뱅크 버튼 항상 표시
+    if(kkBtn) kkBtn.style.display = 'flex';
+    var tossBtn = document.getElementById('tossBtn');
+    if(tossBtn) tossBtn.style.display = 'flex';
+    if(toast) toast.style.display = 'none';
+  } else {
+    // 현금지급 — 계좌 UI 숨김
+    if(tbBox) tbBox.style.display = 'none';
+    if(cpBtn) cpBtn.style.display = 'none';
+    if(kkBtn) kkBtn.style.display = 'none';
+    var tossBtn0 = document.getElementById('tossBtn');
+    if(tossBtn0) tossBtn0.style.display = 'none';
+    if(toast) toast.style.display = 'none';
+  }
+  document.getElementById('successModal').classList.add('show');
+}
+
+function closeModal(){
+  document.getElementById('successModal').classList.remove('show');
+  // 모달 닫을 때 toast 초기화
+  const t = document.getElementById('copyToast');
+  if(t) t.style.display='none';
+  const tb = document.getElementById('tossBtn');
+  if(tb) tb.style.display='none';
+}
+
+function copyAcctNo(){
+  const acct = LS.get('account',{no:''});
+  const no = acct.no || '';
+  if(!no) return;
+  // 하이픈 제거한 숫자만 복사 (이체 시 편리)
+  const plain = no.replace(/-/g,'');
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(plain).then(function(){
+        showCopyToast();
+      }).catch(function(){
+        fallbackCopy(plain);
+      });
+    } else {
+      fallbackCopy(plain);
+    }
+  }catch(e){ fallbackCopy(plain); }
+}
+
+function fallbackCopy(text){
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try{ document.execCommand('copy'); showCopyToast(); }catch(e){}
+  document.body.removeChild(ta);
+}
+
+function showCopyToast(){
+  const t = document.getElementById('copyToast');
+  if(!t) return;
+  t.style.display = 'block';
+  setTimeout(function(){ t.style.display='none'; }, 2500);
+}
+
+function openKakaoBank(){
+  const acct = LS.get('account',{no:'',amt:'1,000원'});
+  // 카카오뱅크 앱 열기 (계좌번호 자동 입력은 공식 미지원 — 앱만 열림)
+  location.href = 'kakaobank://';
+  // 앱 미설치 시 스토어 이동 대비
+  setTimeout(function(){
+    var ua = navigator.userAgent.toLowerCase();
+    if(ua.indexOf('android') > -1){
+      // Android: Play Store
+    } else {
+      // iOS: App Store (이미 앱 열기 시도 후라 무시됨)
+    }
+  }, 2000);
+}
+
+function openTossBank(){
+  // 토스뱅크 앱 열기
+  location.href = 'supertoss://';
+  // 앱 미설치 시 스토어로 이동
+  setTimeout(function(){
+    var ua = navigator.userAgent.toLowerCase();
+    if(ua.indexOf('android') > -1){
+      location.href = 'market://details?id=viva.republica.toss';
+    } else {
+      location.href = 'https://apps.apple.com/app/id839333328';
+    }
+  }, 2000);
+}
+
+document.addEventListener('DOMContentLoaded',function(){
+  if(window.__naverIOS){
+    var nb=document.createElement('div');
+    nb.style.cssText='background:#fff7ed;color:#9a3412;border-bottom:2px solid #f97316;padding:8px 12px;font-size:12px;font-weight:700;text-align:center;line-height:1.5';
+    nb.textContent='⚠️ 네이버 앱 안에서는 일부 기능이 제한될 수 있습니다. 우측 하단 메뉴에서 "Safari로 열기"를 눌러주세요.';
+    document.body.insertBefore(nb, document.body.firstChild);
+  }
+  applySchool();
+  if(IS_PREVIEW){
+    var pb=document.createElement('div');
+    pb.style.cssText='background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b;padding:8px 12px;font-size:12px;font-weight:700;text-align:center;line-height:1.5';
+    pb.textContent='👀 미리보기 모드 — config.js 에 서버 주소가 없어 신청이 저장되지 않습니다.';
+    document.body.insertBefore(pb, document.body.firstChild);
+  }
+  // GAS에서 식단+설정 로드 후 화면 초기화
+  if(IS_PREVIEW){
+    // 데모 모드: localStorage/기본값 사용
+    applyAccountInfo(); buildDateTabs(); checkOverlays();
+  } else {
+    // 즉시 렌더 (캐시 우선)
+    function initScreen(){ applyAccountInfo(); buildDateTabs(); checkOverlays(); }
+    initScreen();
+
+    // getSettings 1회 호출 → 설정 반영 후 화면 갱신
+    fetchFromGAS({action:'getSettings'},function(setRes,setErr){
+      if(!setErr&&setRes&&setRes.status==='ok'&&setRes.data){
+        const d=setRes.data;
+        // 계좌 정보
+        try{ LS.set('account',{bank:d.bank||'',no:d.bankNo||'',owner:d.bankOwner||'',amt:d.bankAmt||'1,000원'}); }catch(e){}
+        // 학교 정보 (학교명·학과·학년·학번 자리수·개인정보 문구 등)
+        try{ LS.set('school',schoolFromSettings(d)); applySchool(); }catch(e){}
+        // 신청 시간 설정 — cleanTime으로 GAS Date 자동변환 방지
+        try{
+          if(d.startTime||d.endTime){
+            LS.set('time_settings',{
+              start:cleanTime(d.startTime,'08:25'),
+              end:cleanTime(d.endTime,'10:30')
+            });
+          }
+        }catch(e){}
+        // 판매 종료 설정
+        try{
+          if(d.soldoutManual!==undefined||d.soldoutMsg){
+            LS.set('soldout_settings',{
+              manual:d.soldoutManual==='true',
+              msg:d.soldoutMsg||'금일 천원의 아침밥 판매가 종료되었습니다. 감사합니다.'
+            });
+          }
+        }catch(e){}
+        initScreen();
+      }
+    });
+
+    // getMenu 백그라운드 (화면 블로킹 없음)
+    fetchFromGAS({action:'getMenu'},function(menuRes,menuErr){
+      try{
+        if(!menuErr&&menuRes&&menuRes.status==='ok'&&menuRes.data&&Object.keys(menuRes.data).length>0){
+          LS.set('menu',menuRes.data);
+          buildDateTabs(); checkOverlays();
+        }
+      }catch(e){}
+    });
+  }
+
+  updateClock(); setInterval(updateClock,1000);
+  setInterval(function(){
+    loadLiveStats(); checkOverlays();
+  },30000);
+});
+</script>
+</body>
+</html>
